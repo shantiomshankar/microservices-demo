@@ -99,6 +99,24 @@ Timer Queue -> callback (discount ready)
 callback -> respond to Client
 ```
 
+### Kaun wait karta hai, kab tak, kyun?
+- **Wait kaun karta hai?** Callback khud wait nahi karta. **Node event loop** wait karta hai
+  ki timer complete ho jaye, phir callback run hota hai.
+- **Kab tak wait?** `setTimeout` me diye gaye delay tak (yahan 60ms, 40ms).
+- **Kyun wait?** Kyunki async kaam (DB/HTTP) time leta hai. Timer delay us waiting ko
+  simulate karta hai.
+
+### Wait ke dauran execution ka kya hota hai?
+- `fetchItemFromDb` turant return ho jata hai.
+- Main thread block nahi hota. Event loop dusre requests handle kar sakta hai.
+- Jab timer complete hota hai, callback queue se uthkar execute hota hai.
+
+### Kis method ka kya kaam?
+- `fetchItemFromDb(itemId, cb)`: fake DB call start karna, result callback me dena.
+- `fetchDiscountFromService(itemId, cb)`: fake discount call start karna.
+- `handlePriceRequest`: request parse, async chain start, final response send.
+- `setTimeout`: async delay simulate karna (timer queue).
+
 ---
 
 ## 2) Promise Style
@@ -185,6 +203,25 @@ Timer Queue -> resolve(discount)
 Microtask Queue -> .then (compute + respond)
 ```
 
+### Kaun wait karta hai, kab tak, kyun?
+- **Wait kaun karta hai?** `then` wala part wait karta hai. Jab tak Promise resolve
+  nahi hota, `.then` run nahi hota.
+- **Kab tak wait?** Promise resolve hone tak (yahan timer delay ke baad).
+- **Kyun wait?** Promise future result represent karta hai, isliye chain ko future me
+  chalna hota hai.
+
+### Wait ke dauran execution ka kya hota hai?
+- Promise return ho jata hai, function finish ho jata hai.
+- Main thread free rehti hai; event loop dusre kaam karta hai.
+- Resolve hone par `.then` callbacks **microtask queue** me chale jate hain aur run hote
+  hain.
+
+### Kis method ka kya kaam?
+- `fetchItemFromDb(itemId)`: Promise return karta hai jo item dega.
+- `fetchDiscountFromService(itemId)`: Promise return karta hai jo discount dega.
+- `.then(...)`: previous async result aane par next step chalata hai.
+- `.catch(...)`: error aane par handle karta hai.
+
 ---
 
 ## 3) Async/Await Style
@@ -266,7 +303,29 @@ Promise resolves -> function resumes
 Service -> respond to Client
 ```
 
+### Kaun wait karta hai, kab tak, kyun?
+- **Wait kaun karta hai?** `await` ke baad ka code wait karta hai. Function **pause**
+  hoti hai (sirf us function ka execution).
+- **Kab tak wait?** Promise resolve/reject hone tak.
+- **Kyun wait?** `await` Promise ke result ko synchronous-style me lene deta hai.
+
+### Wait ke dauran execution ka kya hota hai?
+- `handlePriceRequest` pause hota hai, lekin **main thread block nahi hota**.
+- Event loop dusre requests handle karta hai.
+- Promise resolve hote hi function resume hota hai.
+
+### Kis method ka kya kaam?
+- `async function handlePriceRequest`: function ko Promise-returning banata hai.
+- `await fetchItemFromDb`: Promise result ka wait + unwrap.
+- `await fetchDiscountFromService`: next async result ka wait.
+- `try/catch`: async errors handle karta hai.
+
 ---
+
+## Quick recap (kid-friendly)
+- Callback: "Kaam khatam ho to mujhe bulao."
+- Promise: "Result aane par mujhse baat karna."
+- Async/await: "Main yahin wait kar raha hoon, par line jam nahi kar raha."
 
 ## Super Simple Analogy (kid-friendly)
 Socho tumne pizza order kiya:
