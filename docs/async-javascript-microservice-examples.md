@@ -87,6 +87,18 @@ server.listen(8080, () => {
 - Event loop free hota hai to callback run hota hai.
 - Callback style me async kaam ka result **callback function** se aata hai.
 
+### Diagram (simple)
+```
+Client -> Service
+Service -> fetchItemFromDb (setTimeout)
+... time passes ...
+Timer Queue -> callback (item ready)
+callback -> fetchDiscountFromService (setTimeout)
+... time passes ...
+Timer Queue -> callback (discount ready)
+callback -> respond to Client
+```
+
 ---
 
 ## 2) Promise Style
@@ -160,6 +172,19 @@ server.listen(8081, () => {
 - Promise resolution microtask queue me `.then` callbacks chalte hain.
 - Code "flat" dikhta hai, nesting kam ho jati hai.
 
+### Diagram (simple)
+```
+Client -> Service
+Service -> fetchItemFromDb => Promise pending
+... time passes ...
+Timer Queue -> resolve(item)
+Microtask Queue -> .then (start discount)
+Service -> fetchDiscountFromService => Promise pending
+... time passes ...
+Timer Queue -> resolve(discount)
+Microtask Queue -> .then (compute + respond)
+```
+
 ---
 
 ## 3) Async/Await Style
@@ -226,6 +251,20 @@ server.listen(8082, () => {
 - `async/await` internally Promises use karta hai.
 - `await` Promise resolve hone tak function ko pause karta hai.
 - Event loop still free rehta hai, dusre requests handle ho sakte hain.
+
+### Diagram (simple)
+```
+Client -> Service
+Service -> await fetchItemFromDb
+Function pauses (event loop free)
+... time passes ...
+Promise resolves -> function resumes
+Service -> await fetchDiscountFromService
+Function pauses (event loop free)
+... time passes ...
+Promise resolves -> function resumes
+Service -> respond to Client
+```
 
 ---
 
