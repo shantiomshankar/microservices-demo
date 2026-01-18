@@ -74,6 +74,63 @@ server.listen(8080, () => {
 });
 ```
 
+### Line-by-line (callbacks)
+1. `const http = require("http");` — Node ka HTTP module import hota hai.
+2. `const { URL } = require("url");` — URL parsing ke liye URL class import hota hai.
+3. *(blank line)* — readability ke liye gap.
+4. `function fetchItemFromDb(itemId, cb) {` — DB fetch ka helper function start.
+5. `  // Simulated DB I/O: completes later` — comment: yeh fake async kaam hai.
+6. `  setTimeout(() => {` — async delay start; callback baad me chalega.
+7. `    if (!itemId) return cb(new Error("missing itemId"));` — itemId missing ho to error callback.
+8. `    cb(null, { id: itemId, basePrice: 100 });` — success me item data callback.
+9. `  }, 60);` — delay 60ms set.
+10. `}` — function end.
+11. *(blank line)* — readability gap.
+12. `function fetchDiscountFromService(itemId, cb) {` — discount service helper.
+13. `  // Simulated HTTP call: completes later` — comment: fake network call.
+14. `  setTimeout(() => {` — async delay start.
+15. `    cb(null, { percent: 10 });` — success me discount callback.
+16. `  }, 40);` — delay 40ms set.
+17. `}` — function end.
+18. *(blank line)* — readability gap.
+19. `function handlePriceRequest(req, res) {` — request handler start.
+20. `  const url = new URL(req.url, "http://localhost");` — incoming URL parse.
+21. `  const itemId = url.searchParams.get("itemId");` — query se itemId nikalo.
+22. *(blank line)* — readability gap.
+23. `  // Step A: start async DB work` — comment: pehla async step.
+24. `  fetchItemFromDb(itemId, (dbErr, item) => {` — DB call + callback.
+25. `    if (dbErr) {` — error check.
+26. `      res.statusCode = 400;` — client error set.
+27. `      return res.end(JSON.stringify({ error: dbErr.message }));` — error response send.
+28. `    }` — if end.
+29. *(blank line)* — readability gap.
+30. `    // Step B: start async discount work` — comment: dusra async step.
+31. `    fetchDiscountFromService(item.id, (discErr, discount) => {` — discount call + callback.
+32. `      if (discErr) {` — error check.
+33. `        res.statusCode = 500;` — server error set.
+34. `        return res.end(JSON.stringify({ error: "discount failed" }));` — error response.
+35. `      }` — if end.
+36. *(blank line)* — readability gap.
+37. `      // Step C: compute and respond` — comment: final step.
+38. `      const finalPrice = Math.round(` — final price start.
+39. `        item.basePrice * (1 - discount.percent / 100)` — discount apply.
+40. `      );` — Math.round close.
+41. `      res.setHeader("Content-Type", "application/json");` — response type set.
+42. `      res.end(JSON.stringify({ itemId: item.id, price: finalPrice }));` — success response.
+43. `    });` — discount callback end.
+44. `  });` — DB callback end.
+45. `}` — handler end.
+46. *(blank line)* — readability gap.
+47. `const server = http.createServer((req, res) => {` — HTTP server create.
+48. `  if (req.url.startsWith("/price")) return handlePriceRequest(req, res);` — /price route handle.
+49. `  res.statusCode = 404;` — unknown path error.
+50. `  res.end("not found");` — 404 response.
+51. `});` — server callback end.
+52. *(blank line)* — readability gap.
+53. `server.listen(8080, () => {` — server port 8080 pe start.
+54. `  console.log("callback service on :8080");` — startup log.
+55. `});` — listen callback end.
+
 ### Execution sequence (simple steps)
 1. Request aata hai: `GET /price?itemId=toy1`.
 2. `fetchItemFromDb` call hota hai. Yeh function **setTimeout** lagata hai.
@@ -176,6 +233,59 @@ server.listen(8081, () => {
 });
 ```
 
+### Line-by-line (promises)
+1. `const http = require("http");` — HTTP module import.
+2. `const { URL } = require("url");` — URL parser import.
+3. *(blank line)* — readability gap.
+4. `function fetchItemFromDb(itemId) {` — DB helper start.
+5. `  return new Promise((resolve, reject) => {` — Promise ban raha hai.
+6. `    setTimeout(() => {` — async delay start.
+7. `      if (!itemId) return reject(new Error("missing itemId"));` — error reject.
+8. `      resolve({ id: itemId, basePrice: 100 });` — success resolve.
+9. `    }, 60);` — delay 60ms.
+10. `  });` — Promise end.
+11. `}` — function end.
+12. *(blank line)* — readability gap.
+13. `function fetchDiscountFromService(itemId) {` — discount helper start.
+14. `  return new Promise((resolve) => {` — Promise ban raha hai.
+15. `    setTimeout(() => resolve({ percent: 10 }), 40);` — delay + resolve.
+16. `  });` — Promise end.
+17. `}` — function end.
+18. *(blank line)* — readability gap.
+19. `function handlePriceRequest(req, res) {` — request handler start.
+20. `  const url = new URL(req.url, "http://localhost");` — URL parse.
+21. `  const itemId = url.searchParams.get("itemId");` — itemId read.
+22. *(blank line)* — readability gap.
+23. `  fetchItemFromDb(itemId)` — Promise start.
+24. `    .then((item) => {` — item milne par next step.
+25. `      return fetchDiscountFromService(item.id).then((discount) => ({` — discount + combine.
+26. `        item,` — item ko object me rakhna.
+27. `        discount,` — discount ko object me rakhna.
+28. `      }));` — combined object return.
+29. `    })` — first then end.
+30. `    .then(({ item, discount }) => {` — combined result se next step.
+31. `      const finalPrice = Math.round(` — final price start.
+32. `        item.basePrice * (1 - discount.percent / 100)` — discount apply.
+33. `      );` — Math.round close.
+34. `      res.setHeader("Content-Type", "application/json");` — response type set.
+35. `      res.end(JSON.stringify({ itemId: item.id, price: finalPrice }));` — success response.
+36. `    })` — second then end.
+37. `    .catch((err) => {` — error handler start.
+38. `      res.statusCode = err.message === "missing itemId" ? 400 : 500;` — status decide.
+39. `      res.end(JSON.stringify({ error: err.message }));` — error response.
+40. `    });` — catch end.
+41. `}` — handler end.
+42. *(blank line)* — readability gap.
+43. `const server = http.createServer((req, res) => {` — server create.
+44. `  if (req.url.startsWith("/price")) return handlePriceRequest(req, res);` — /price route.
+45. `  res.statusCode = 404;` — 404 set.
+46. `  res.end("not found");` — 404 response.
+47. `});` — server callback end.
+48. *(blank line)* — readability gap.
+49. `server.listen(8081, () => {` — server start 8081.
+50. `  console.log("promise service on :8081");` — startup log.
+51. `});` — listen end.
+
 ### Execution sequence (simple steps)
 1. Request aata hai.
 2. `fetchItemFromDb` call hota hai -> Promise pending.
@@ -275,6 +385,54 @@ server.listen(8082, () => {
   console.log("async/await service on :8082");
 });
 ```
+
+### Line-by-line (async/await)
+1. `const http = require("http");` — HTTP module import.
+2. `const { URL } = require("url");` — URL parser import.
+3. *(blank line)* — readability gap.
+4. `function fetchItemFromDb(itemId) {` — DB helper start.
+5. `  return new Promise((resolve, reject) => {` — Promise ban raha hai.
+6. `    setTimeout(() => {` — async delay.
+7. `      if (!itemId) return reject(new Error("missing itemId"));` — error reject.
+8. `      resolve({ id: itemId, basePrice: 100 });` — success resolve.
+9. `    }, 60);` — delay 60ms.
+10. `  });` — Promise end.
+11. `}` — function end.
+12. *(blank line)* — readability gap.
+13. `function fetchDiscountFromService(itemId) {` — discount helper start.
+14. `  return new Promise((resolve) => {` — Promise ban raha hai.
+15. `    setTimeout(() => resolve({ percent: 10 }), 40);` — delay + resolve.
+16. `  });` — Promise end.
+17. `}` — function end.
+18. *(blank line)* — readability gap.
+19. `async function handlePriceRequest(req, res) {` — async handler start.
+20. `  const url = new URL(req.url, "http://localhost");` — URL parse.
+21. `  const itemId = url.searchParams.get("itemId");` — itemId read.
+22. *(blank line)* — readability gap.
+23. `  try {` — error handling start.
+24. `    const item = await fetchItemFromDb(itemId);` — item ke liye wait.
+25. `    const discount = await fetchDiscountFromService(item.id);` — discount ke liye wait.
+26. *(blank line)* — readability gap.
+27. `    const finalPrice = Math.round(` — final price start.
+28. `      item.basePrice * (1 - discount.percent / 100)` — discount apply.
+29. `    );` — Math.round close.
+30. `    res.setHeader("Content-Type", "application/json");` — response type set.
+31. `    res.end(JSON.stringify({ itemId: item.id, price: finalPrice }));` — success response.
+32. `  } catch (err) {` — error capture.
+33. `    res.statusCode = err.message === "missing itemId" ? 400 : 500;` — status decide.
+34. `    res.end(JSON.stringify({ error: err.message }));` — error response.
+35. `  }` — try/catch end.
+36. `}` — handler end.
+37. *(blank line)* — readability gap.
+38. `const server = http.createServer((req, res) => {` — server create.
+39. `  if (req.url.startsWith("/price")) return handlePriceRequest(req, res);` — /price route.
+40. `  res.statusCode = 404;` — 404 set.
+41. `  res.end("not found");` — 404 response.
+42. `});` — server callback end.
+43. *(blank line)* — readability gap.
+44. `server.listen(8082, () => {` — server start 8082.
+45. `  console.log("async/await service on :8082");` — startup log.
+46. `});` — listen end.
 
 ### Execution sequence (simple steps)
 1. Request aata hai.
